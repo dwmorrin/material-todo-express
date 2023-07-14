@@ -6,6 +6,12 @@ import Toolbar from "@mui/material/Toolbar";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import DeleteIcon from "@mui/icons-material/Delete";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
+
 import { useState } from "react";
 
 interface ToDoItem {
@@ -22,6 +28,8 @@ interface ToDoLists {
   done: ToDoItem[];
   deleted: ToDoItem[];
 }
+
+type ListName = "active" | "done" | "deleted";
 
 const initialLists: ToDoLists = {
   active: [],
@@ -59,6 +67,17 @@ function App() {
     });
   };
 
+  const move = (from: ListName, to: ListName, item: ToDoItem) => {
+    const index = lists[from].findIndex((todo) => areEqual(todo, item));
+    if (index === -1)
+      return console.error("Application error: can't find item", { item });
+    setLists({
+      ...lists,
+      [from]: lists[from].filter((other) => !areEqual(other, item)),
+      [to]: [...lists[to], item],
+    });
+  };
+
   return (
     <Box>
       <AppBar>
@@ -73,10 +92,12 @@ function App() {
       <Paper>
         <Stack>
           <TextField
+            autoFocus
             placeholder="Don't forget to..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyUp={(e) => e.key === "Enter" && addToDo()}
+            onBlur={() => text && addToDo()}
           />
           {lists.active.map((item) => (
             <TextField
@@ -88,6 +109,45 @@ function App() {
               onKeyUp={(e) =>
                 e.key === "Enter" && (e.target as HTMLInputElement).blur()
               }
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton onClick={() => move("active", "done", item)}>
+                      <CheckBoxOutlineBlankIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => move("active", "deleted", item)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          ))}
+          {lists.done.map((item) => (
+            <TextField
+              disabled
+              key={`${item.id}-${item.timestamp}`}
+              value={item.text}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton onClick={() => move("done", "active", item)}>
+                      <CheckBoxIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => move("done", "deleted", item)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
           ))}
         </Stack>

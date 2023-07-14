@@ -1,62 +1,68 @@
 # Todo list using Vite, Material UI, and Express
 
-## 5nd commit: Simple Todo App (part 4)
+## 6th commit: Simple Todo App (part 5)
 
 ### Stuff to do
 
-A way to compare `ToDoItem` instances by value:
+Quick follow up from the last step: remember the discussion of `blur` and `focus`?
+Let's add the `autoFocus` prop to our main input and also a `onBlur` handler to save stuff.
 
-```ts
-// put this way up top, under the interface definition
-// it does not need to be inside the App() function.
-
-const areEqual = (a: ToDoItem, b: ToDoItem) =>
-  a.id === b.id && a.timestamp === b.timestamp;
+```jsx
+<TextField
+  autoFocus // <-- Add this
+  placeholder="Don't forget to..."
+  value={text}
+  onChange={(e) => setText(e.target.value)}
+  onKeyUp={(e) => e.key === "Enter" && addToDo()}
+  onBlur={() => text && addToDo()} // <-- And add this
+/>
 ```
 
-Inside `App()`, below the `addToDo` function, let's add `updateActiveItem` which
-will make use of `areEqual`:
+Try it out: you should notice that just clicking away will also add a new note
+(provided you've entered some text) just like <kbd>Enter</kbd> does.
+
+Let's get fancy again with Material UI.
+You'll need these imports for fancy checkboxes and delete buttons:
 
 ```ts
-const updateActiveItem = (updatedItem: ToDoItem) => {
-  const index = lists.active.findIndex((todo) => areEqual(todo, updatedItem));
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import DeleteIcon from "@mui/icons-material/Delete";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
+```
+
+and we need some more state-changing helper functions:
+
+```ts
+// this can be way up top:
+type ListName = "active" | "done" | "deleted";
+
+// ... and this should be inside of App()
+const move = (from: ListName, to: ListName, item: ToDoItem) => {
+  const index = lists[from].findIndex((todo) => areEqual(todo, item));
   if (index === -1)
-    return console.error("Application error: can't item", {
-      item: updatedItem,
-    });
+    return console.error("Application error: can't find item", { item });
   setLists({
     ...lists,
-    active: [
-      ...lists.active.slice(0, index),
-      updatedItem,
-      ...lists.active.slice(index + 1),
-    ],
+    [from]: lists[from].filter((other) => !areEqual(other, item)),
+    [to]: [...lists[to], item],
   });
 };
 ```
 
-Yikes, that one is a bit messier than I'd like, but we could further clean it up
-if we wrote special error handling functions and array helper functions.
+A general "move item from one list to another" helper function: `move`.
 
-The messy spread notation to update `lists.active` is just JavaScript.
-We are using the index we found to spread out the array in the same order while
-update the place where our old entry was. Google "mdn array prototype slice" and
-play with `slice` until you understand how it is working.
+- We created a type that can only be a literal string of 3 possible values.
+  This lets us safely use variables to index into our `lists` object.
+- We can pick which list using a variable with the `lists[from]` syntax!
+- Note how you also need the square brackets around `[from]` in the `setLists` call.
+- Note we are always moving to the back of the destination list.
+  Maybe this is ok, or maybe not? Just something to think about.
 
-Note that we do not _expect_ our error condition to ever run _if our logic is correct_.
-
-When we have an "impossible" condition like this, use a consistent prefix in the
-error message (or write a custom error object) to indicate to yourself and others
-that this is an "impossible" situation and points to a programming bug.
-I'm choosing to use `Application error:` my "impossible" prefix.
-
-Finally, let's "map over" our `lists.active` and have a functioning to-do list:
+And add the update to our active item list:
 
 ```jsx
-<TextField
-  placeholder="Don't forget to..."
-  // ... just shown for context... add the next part!
-/>
 {lists.active.map((item) => (
   <TextField
     key={`${item.id}-${item.timestamp}`}
@@ -67,33 +73,64 @@ Finally, let's "map over" our `lists.active` and have a functioning to-do list:
     onKeyUp={(e) =>
       e.key === "Enter" && (e.target as HTMLInputElement).blur()
     }
+    InputProps={{
+      startAdornment: (
+        <InputAdornment position="start">
+          <IconButton onClick={() => move("active", "done", item)}>
+            <CheckBoxOutlineBlankIcon />
+          </IconButton>
+        </InputAdornment>
+      ),
+      endAdornment: (
+        <InputAdornment position="end">
+          <IconButton onClick={() => move("active", "deleted", item)}>
+            <CheckBoxOutlineBlankIcon />
+            <DeleteIcon />
+          </IconButton>
+        </InputAdornment>
+      ),
+    }}
   />
 ))}
 ```
 
-Does the call to `updateActiveItem` make sense?
-Because we create a new object with `{...item, text: e.target.value}`, we
-lose the ability to compare items _by reference_ (google it if you don't know what that means),
-which is why we wrote a function to compare items _by value_.
+If you look in the JSON output, you should see the items moving into the
+different lists.
 
-Since we already had the `onKeyUp` sitting there, instead of deleting it, I added
-the `blur` call. Try it out. It makes your keyboard lose focus of the input element.
+Let's finish this off with adding the "done" list.
 
-A good feature? Not sure, but check out the weird `(e.target as HTMLInputElement).blur()`
-part. That is TypeScript. For JavaScript, you just need `e.target.blur()`.
-
-Try removing the `as HTMLInputElement` part and you should get a complaint from TypeScript.
-Because the event `target` property can vary, we have to override the type system
-and cast the target to be something with a `blur` function. Don't worry about this part
-too much, it's not important now, but it will come up again.
+```jsx
+{
+  lists.done.map((item) => (
+    <TextField
+      disabled
+      key={`${item.id}-${item.timestamp}`}
+      value={item.text}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <IconButton onClick={() => move("done", "active", item)}>
+              <CheckBoxIcon />
+            </IconButton>
+          </InputAdornment>
+        ),
+        endAdornment: (
+          <InputAdornment position="end">
+            <IconButton onClick={() => move("done", "deleted", item)}>
+              <DeleteIcon />
+            </IconButton>
+          </InputAdornment>
+        ),
+      }}
+    />
+  ));
+}
+```
 
 ### Finished?
 
-You should be able to add new, editable text inputs for your active to do list items.
-
-Next step we will finalize this phase with "done" checkboxes and "delete" buttons.
-
-When you are ready for the next step, run this command:
+Ok, that should be a pretty decent to-do list app now, so lets start on the
+server stuff next.
 
 ```sh
 yarn next
