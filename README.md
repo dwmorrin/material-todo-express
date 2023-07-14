@@ -1,139 +1,97 @@
 # Todo list using Vite, Material UI, and Express
 
-## 4nd commit: Simple Todo App (part 3)
+## 5nd commit: Simple Todo App (part 4)
 
 ### Stuff to do
 
-After looking at the last commit, I realized we didn't need the ID or timestamp
-for our new item entry box. Let's forgot about those for the first text input.
-
-We won't actually need that `initialItem` after all... we can get away with
-just tracking the new text.
-
-Delete `initialItem`.
-
-Update our `useState` and our `TextField` like so:
+A way to compare `ToDoItem` instances by value:
 
 ```ts
-const [text, setText] = useState("");
+// put this way up top, under the interface definition
+// it does not need to be inside the App() function.
+
+const areEqual = (a: ToDoItem, b: ToDoItem) =>
+  a.id === b.id && a.timestamp === b.timestamp;
 ```
 
-```jsx
-<TextField
-  placeholder="Don't forget to..."
-  value={text}
-  onChange={(e) => setText(e.target.value)}
-/>
-```
-
-#### App structure: lists of to-do items
-
-Let's add an overall structure or "state" for our app.
-
-Since people normally add items, mark items done, and maybe delete items,
-we should model that with three lists:
+Inside `App()`, below the `addToDo` function, let's add `updateActiveItem` which
+will make use of `areEqual`:
 
 ```ts
-interface ToDoLists {
-  active: ToDoItem[];
-  done: ToDoItem[];
-  deleted: ToDoItem[];
-}
-```
-
-and make an initial app state:
-
-```ts
-const initialLists: ToDoLists = {
-  active: [],
-  done: [],
-  deleted: [],
-};
-```
-
-and add a `useState` to establish our initial state:
-
-```ts
-const [text, setText] = useState("");
-const [lists, setLists] = useState(initialLists);
-```
-
-Note the syntax for array types: `Type[]`.
-An array of string would be `string[]`.
-By saying `ToDoItem[]`, we declare that only `ToDoItem` instances will go in those arrays.
-
-#### Sneak peak our app state with `JSON.stringify`
-
-Add this weird line near the bottom of our app:
-
-```jsx
-<Paper>
-  <Stack>
-    <TextField {/* details not shown */} />
-  </Stack>
-  <pre>{JSON.stringify(lists, null, 2)}</pre>
-</Paper>
-```
-
-And now you should be getting a sneak peak of the `lists` variable in your
-browser. This is a handy tool to use while building a UI.
-
-#### Add an item!
-
-To wrap this step up, lets do the following:
-
-1. Add an `id` with `useState`. Just a number that keeps going up.
-1. Listen for a <kbd>Enter<kbd> key and use that to signal we have a new to-do item.
-1. Update our `lists`: create a new `ToDoItem` and move it into `lists.active`
-1. Reset our input
-
-Let's make a function to encapsulate the dirty work of creating and updating
-our data. Add an new `useState` and a `addToDo` function like this:
-
-```ts
-const [id, setId] = useState(1);
-
-const addToDo = () => {
+const updateActiveItem = (updatedItem: ToDoItem) => {
+  const index = lists.active.findIndex((todo) => areEqual(todo, updatedItem));
+  if (index === -1)
+    return console.error("Application error: can't item", {
+      item: updatedItem,
+    });
   setLists({
     ...lists,
-    active: [{ id, timestamp: Date.now(), text }, ...lists.active],
-  }); // setLists moves the new entry into the active list
-  setId(id + 1); // updates ID so each entry in this session is unique
-  setText(""); // resets input for the next new entry
+    active: [
+      ...lists.active.slice(0, index),
+      updatedItem,
+      ...lists.active.slice(index + 1),
+    ],
+  });
 };
 ```
 
-You may need to carefully study the syntax used for the `setLists` call.
+Yikes, that one is a bit messier than I'd like, but we could further clean it up
+if we wrote special error handling functions and array helper functions.
 
-`{...lists}` would just make a shallow copy of the `lists` object.
+The messy spread notation to update `lists.active` is just JavaScript.
+We are using the index we found to spread out the array in the same order while
+update the place where our old entry was. Google "mdn array prototype slice" and
+play with `slice` until you understand how it is working.
 
-`{...lists, active: [...lists.active]}` similarly would just be a copy.
+Note that we do not _expect_ our error condition to ever run _if our logic is correct_.
 
-`{...lists, active: [NEW_TODO_ITEM, ...lists.active]}` is where the party starts!
-Now we are **INSERTING** `NEW_TODO_ITEM` into our active list.
+When we have an "impossible" condition like this, use a consistent prefix in the
+error message (or write a custom error object) to indicate to yourself and others
+that this is an "impossible" situation and points to a programming bug.
+I'm choosing to use `Application error:` my "impossible" prefix.
 
-`{...lists, active: [{ id, timestamp: Date.now(), text}, ...lists.active]}`
-is the final new state. Does it make sense? If not, review it until it does
-because this is **core** of how state updates look in React.
-
-Finally, update our `TextField` to listen for the <kbd>Enter</kbd> key and
-call `addToDo`:
+Finally, let's "map over" our `lists.active` and have a functioning to-do list:
 
 ```jsx
 <TextField
   placeholder="Don't forget to..."
-  value={text}
-  onChange={(e) => setText(e.target.value)}
-  onKeyUp={(e) => e.key === "Enter" && addToDo()}
+  // ... just shown for context... add the next part!
 />
+{lists.active.map((item) => (
+  <TextField
+    key={`${item.id}-${item.timestamp}`}
+    value={item.text}
+    onChange={(e) =>
+      updateActiveItem({ ...item, text: e.target.value })
+    }
+    onKeyUp={(e) =>
+      e.key === "Enter" && (e.target as HTMLInputElement).blur()
+    }
+  />
+))}
 ```
+
+Does the call to `updateActiveItem` make sense?
+Because we create a new object with `{...item, text: e.target.value}`, we
+lose the ability to compare items _by reference_ (google it if you don't know what that means),
+which is why we wrote a function to compare items _by value_.
+
+Since we already had the `onKeyUp` sitting there, instead of deleting it, I added
+the `blur` call. Try it out. It makes your keyboard lose focus of the input element.
+
+A good feature? Not sure, but check out the weird `(e.target as HTMLInputElement).blur()`
+part. That is TypeScript. For JavaScript, you just need `e.target.blur()`.
+
+Try removing the `as HTMLInputElement` part and you should get a complaint from TypeScript.
+Because the event `target` property can vary, we have to override the type system
+and cast the target to be something with a `blur` function. Don't worry about this part
+too much, it's not important now, but it will come up again.
 
 ### Finished?
 
-At this point you should be able to type into the box, then hit enter and see
-and new entry in the "active" list in the JSON below the text box.
+You should be able to add new, editable text inputs for your active to do list items.
 
-In our next step, we will display our "active" list properly.
+Next step we will finalize this phase with "done" checkboxes and "delete" buttons.
 
 When you are ready for the next step, run this command:
 

@@ -14,6 +14,9 @@ interface ToDoItem {
   text: string;
 }
 
+const areEqual = (a: ToDoItem, b: ToDoItem) =>
+  a.id === b.id && a.timestamp === b.timestamp;
+
 interface ToDoLists {
   active: ToDoItem[];
   done: ToDoItem[];
@@ -40,6 +43,22 @@ function App() {
     setText("");
   };
 
+  const updateActiveItem = (updatedItem: ToDoItem) => {
+    const index = lists.active.findIndex((todo) => areEqual(todo, updatedItem));
+    if (index === -1)
+      return console.error("Application error: can't find item", {
+        item: updatedItem,
+      });
+    setLists({
+      ...lists,
+      active: [
+        ...lists.active.slice(0, index),
+        updatedItem,
+        ...lists.active.slice(index + 1),
+      ],
+    });
+  };
+
   return (
     <Box>
       <AppBar>
@@ -59,6 +78,18 @@ function App() {
             onChange={(e) => setText(e.target.value)}
             onKeyUp={(e) => e.key === "Enter" && addToDo()}
           />
+          {lists.active.map((item) => (
+            <TextField
+              key={`${item.id}-${item.timestamp}`}
+              value={item.text}
+              onChange={(e) =>
+                updateActiveItem({ ...item, text: e.target.value })
+              }
+              onKeyUp={(e) =>
+                e.key === "Enter" && (e.target as HTMLInputElement).blur()
+              }
+            />
+          ))}
         </Stack>
         <pre>{JSON.stringify(lists, null, 2)}</pre>
       </Paper>
