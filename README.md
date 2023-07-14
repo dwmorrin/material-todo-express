@@ -1,115 +1,139 @@
 # Todo list using Vite, Material UI, and Express
 
-## 3nd commit: Simple Todo App (part 2)
+## 4nd commit: Simple Todo App (part 3)
 
 ### Stuff to do
 
-#### First TypeScript task: define an `interface` for `ToDoItem`
+After looking at the last commit, I realized we didn't need the ID or timestamp
+for our new item entry box. Let's forgot about those for the first text input.
 
-In `App.tsx`, between your `import` statements and the `function App()` definition,
-add your first bit of TypeScript:
+We won't actually need that `initialItem` after all... we can get away with
+just tracking the new text.
 
-```ts
-interface ToDoItem {
-  id: number;
-  timestamp: number;
-  text: string;
-}
-```
+Delete `initialItem`.
 
-When you want to group a collection of data together, reach for the `interface`
-first. There are other ways to define a type, but `interface` should be your
-first choice for custom objects.
-
-This does not create any variables in our JavaScript code. This will enable
-the TypeScript compiler to yell at us if we declare something as a `ToDoItem` and
-then use it incorrectly.
-
-Below the interface, lets define a blank `ToDoItem`.
+Update our `useState` and our `TextField` like so:
 
 ```ts
-interface ToDoItem {
-  id: number;
-  timestamp: number;
-  text: string;
-}
-
-const initialItem: ToDoItem = {
-  id: 0,
-  timestamp: Date.now(),
-  text: "",
-};
+const [text, setText] = useState("");
 ```
-
-Note the syntax for adding a type: `const identifier: Type`
-Also note that the `interface` definition did _not_ have an equals sign _(assignment operator)_.
-When we create the `initialItem`, we do use the equals sign _(assignment operator)_ because we
-are **assigning** the literal object `{id: 0, timestamp: Date.now(), text: ""}`
-to the identifier `initialItem`.
-
-### Our `ToDoItem` component
-
-Next we will need a component to house each `ToDoItem`.
-Material UI's `TextField` will do nicely here.
-For now we will _not_ create a custom component, but keep in mind you could.
-
-Let's just add a `TextField` and populate it with our `initialItem`.
-
-Delete the `Typography` inside your `Stack`.
-
-Import and add a `TextField` from Material UI.
-
-Add the properties `value={initialItem.text}` and `placeholder="Don't forget to..."`
-or whatever fun placeholder you come up with.
-
-You should see a text box now with the placeholder text showing. You can't type
-into yet because the value is always going to be `""`, a.k.a. the empty string,
-which is what `initialItem.text` was set to (find `text: ""` in the definition).
-
-### Update the `ToDoItem` with `useState`
-
-Uncomment or add `import { useState } from "react";`
-
-Change (or add) the `useState()` call to
-
-```ts
-const [item, setItem] = useState(initialItem);
-```
-
-Because we pass in a `ToDoItem` type to `useState()`, TypeScript will only allow
-us to pass a `ToDoItem` into `setItem`.
-
-Try calling `setItem(0)` and you'll get an error. (Go ahead and try!)
-
-(Take a moment to realize how 1000% better that is than plain JavaScript,
-which would allow you to pass ANYTHING into `setItem`!)
-
-Now update your `TextField` to use `item` instead of `initialItem`
-and add the `onChange` handler as shown below.
 
 ```jsx
 <TextField
   placeholder="Don't forget to..."
-  value={item.text} // <-- Don't leave this as initialItem.text!
-  onChange={(e) => setItem({ ...item, text: e.target.value })}
+  value={text}
+  onChange={(e) => setText(e.target.value)}
 />
 ```
 
-The syntax `{...anotherObject, key: value}` "spreads" (it's called the spread
-operator) the keys and values of `anotherObject` into a new object literal
-(`{}` is an object literal), and any `key: value` that comes after the spread
-will **overwrite** the `key: value` that may have been spread by `anotherObject.`
+#### App structure: lists of to-do items
 
-That `setItem` line reads to me as "copy item, but update the `text` property
-to this new value, `e.target.value`". (`e.target.value` is the HTML text input current value.)
+Let's add an overall structure or "state" for our app.
+
+Since people normally add items, mark items done, and maybe delete items,
+we should model that with three lists:
+
+```ts
+interface ToDoLists {
+  active: ToDoItem[];
+  done: ToDoItem[];
+  deleted: ToDoItem[];
+}
+```
+
+and make an initial app state:
+
+```ts
+const initialLists: ToDoLists = {
+  active: [],
+  done: [],
+  deleted: [],
+};
+```
+
+and add a `useState` to establish our initial state:
+
+```ts
+const [text, setText] = useState("");
+const [lists, setLists] = useState(initialLists);
+```
+
+Note the syntax for array types: `Type[]`.
+An array of string would be `string[]`.
+By saying `ToDoItem[]`, we declare that only `ToDoItem` instances will go in those arrays.
+
+#### Sneak peak our app state with `JSON.stringify`
+
+Add this weird line near the bottom of our app:
+
+```jsx
+<Paper>
+  <Stack>
+    <TextField {/* details not shown */} />
+  </Stack>
+  <pre>{JSON.stringify(lists, null, 2)}</pre>
+</Paper>
+```
+
+And now you should be getting a sneak peak of the `lists` variable in your
+browser. This is a handy tool to use while building a UI.
+
+#### Add an item!
+
+To wrap this step up, lets do the following:
+
+1. Add an `id` with `useState`. Just a number that keeps going up.
+1. Listen for a <kbd>Enter<kbd> key and use that to signal we have a new to-do item.
+1. Update our `lists`: create a new `ToDoItem` and move it into `lists.active`
+1. Reset our input
+
+Let's make a function to encapsulate the dirty work of creating and updating
+our data. Add an new `useState` and a `addToDo` function like this:
+
+```ts
+const [id, setId] = useState(1);
+
+const addToDo = () => {
+  setLists({
+    ...lists,
+    active: [{ id, timestamp: Date.now(), text }, ...lists.active],
+  }); // setLists moves the new entry into the active list
+  setId(id + 1); // updates ID so each entry in this session is unique
+  setText(""); // resets input for the next new entry
+};
+```
+
+You may need to carefully study the syntax used for the `setLists` call.
+
+`{...lists}` would just make a shallow copy of the `lists` object.
+
+`{...lists, active: [...lists.active]}` similarly would just be a copy.
+
+`{...lists, active: [NEW_TODO_ITEM, ...lists.active]}` is where the party starts!
+Now we are **INSERTING** `NEW_TODO_ITEM` into our active list.
+
+`{...lists, active: [{ id, timestamp: Date.now(), text}, ...lists.active]}`
+is the final new state. Does it make sense? If not, review it until it does
+because this is **core** of how state updates look in React.
+
+Finally, update our `TextField` to listen for the <kbd>Enter</kbd> key and
+call `addToDo`:
+
+```jsx
+<TextField
+  placeholder="Don't forget to..."
+  value={text}
+  onChange={(e) => setText(e.target.value)}
+  onKeyUp={(e) => e.key === "Enter" && addToDo()}
+/>
+```
 
 ### Finished?
 
-At this point you should have a text box you can type into.
+At this point you should be able to type into the box, then hit enter and see
+and new entry in the "active" list in the JSON below the text box.
 
-Next we need to make a list of text boxes.
-
-We will go ahead and flesh out our entire app plans in the next step.
+In our next step, we will display our "active" list properly.
 
 When you are ready for the next step, run this command:
 

@@ -14,14 +14,31 @@ interface ToDoItem {
   text: string;
 }
 
-const initialItem: ToDoItem = {
-  id: 0,
-  timestamp: Date.now(),
-  text: "",
+interface ToDoLists {
+  active: ToDoItem[];
+  done: ToDoItem[];
+  deleted: ToDoItem[];
+}
+
+const initialLists: ToDoLists = {
+  active: [],
+  done: [],
+  deleted: [],
 };
 
 function App() {
-  const [item, setItem] = useState(initialItem);
+  const [text, setText] = useState("");
+  const [lists, setLists] = useState(initialLists);
+  const [id, setId] = useState(1);
+
+  const addToDo = () => {
+    setLists({
+      ...lists,
+      active: [{ id, timestamp: Date.now(), text }, ...lists.active],
+    });
+    setId(id + 1);
+    setText("");
+  };
 
   return (
     <Box>
@@ -38,10 +55,12 @@ function App() {
         <Stack>
           <TextField
             placeholder="Don't forget to..."
-            value={item.text}
-            onChange={(e) => setItem({ ...item, text: e.target.value })}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyUp={(e) => e.key === "Enter" && addToDo()}
           />
         </Stack>
+        <pre>{JSON.stringify(lists, null, 2)}</pre>
       </Paper>
     </Box>
   );
