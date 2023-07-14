@@ -3,12 +3,25 @@ import AppBar from "@mui/material/AppBar";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
-// import { useState } from "react";
+import { useState } from "react";
+
+interface ToDoItem {
+  id: number;
+  timestamp: number;
+  text: string;
+}
+
+const initialItem: ToDoItem = {
+  id: 0,
+  timestamp: Date.now(),
+  text: "",
+};
 
 function App() {
-  // const [count, setCount] = useState(0);
+  const [item, setItem] = useState(initialItem);
 
   return (
     <Box>
@@ -23,7 +36,11 @@ function App() {
       {/* Extra Toolbar is a spacer, see Material UI AppBar demo page for more info */}
       <Paper>
         <Stack>
-          <Typography>Hello. You are at step 2.</Typography>
+          <TextField
+            placeholder="Don't forget to..."
+            value={item.text}
+            onChange={(e) => setItem({ ...item, text: e.target.value })}
+          />
         </Stack>
       </Paper>
     </Box>

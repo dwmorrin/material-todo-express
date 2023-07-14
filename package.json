@@ -6,8 +6,8 @@
     "dev": "nodemon src/server/main.ts -w src/server",
     "start": "NODE_ENV=production ts-node src/server/main.ts",
     "build": "vite build",
-    "prev": "git checkout 1 >/dev/null 2>&1",
-    "next": "git checkout 3 >/dev/null 2>&1"
+    "prev": "git checkout 2 >/dev/null 2>&1",
+    "next": "git checkout 4 >/dev/null 2>&1"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
