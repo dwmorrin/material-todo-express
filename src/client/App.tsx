@@ -1,6 +1,15 @@
+import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import AppBar from "@mui/material/AppBar";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemText from "@mui/material/ListItemText";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
@@ -74,6 +83,9 @@ function App() {
   const [gettingFileNames, setGettingFileNames] = useState(false);
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [savingOrLoading, setSavingOrLoading] = useState(false);
+  const [gettingTitle, setGettingTitle] = useState(false);
+  const [title, setTitle] = useState("");
+  const [pickingFile, setPickingFile] = useState(false);
 
   const onFileNames = ({
     error,
@@ -82,6 +94,7 @@ function App() {
     if (error) throw error;
     if (!isStringArray(files)) throw "Failed to get list of files.";
     setFileNames(files);
+    setGettingTitle(false);
   };
 
   useEffect(() => {
@@ -96,10 +109,11 @@ function App() {
 
   const onSave = () => {
     if (savingOrLoading) return;
+    if (!title) return console.error("Cannot save with a filename");
     setSavingOrLoading(true);
     fetch("/lists", {
       method: "POST",
-      body: JSON.stringify({ title: "my-first-list", lists }),
+      body: JSON.stringify({ title, lists }),
       headers: { "Content-Type": "application/json" },
     })
       .then((res) => res.json())
@@ -108,14 +122,16 @@ function App() {
       .finally(() => setSavingOrLoading(false));
   };
 
-  const onLoad = () => {
+  const onLoad = (pickedFileName: string) => {
     if (savingOrLoading) return;
     setSavingOrLoading(true);
-    fetch("/lists/todo-lists.json")
+    fetch(`/lists/${pickedFileName}`)
       .then((res) => res.json())
       .then(({ error, file }) => {
         if (error) throw error;
         setLists(readListsFromFile(file));
+        setPickingFile(false);
+        setTitle(pickedFileName);
       })
       .catch(console.error)
       .finally(() => setSavingOrLoading(false));
@@ -154,10 +170,18 @@ function App() {
           <Typography variant="h5" position="sticky" sx={{ flexGrow: 1 }}>
             Todo list
           </Typography>
-          <Button color="inherit" disabled={savingOrLoading} onClick={onSave}>
+          <Button
+            color="inherit"
+            disabled={savingOrLoading}
+            onClick={() => setGettingTitle(true)}
+          >
             Save
           </Button>
-          <Button color="inherit" disabled={savingOrLoading} onClick={onLoad}>
+          <Button
+            color="inherit"
+            disabled={savingOrLoading}
+            onClick={() => setPickingFile(true)}
+          >
             Load
           </Button>
         </Toolbar>
@@ -228,6 +252,42 @@ function App() {
         </Stack>
         <pre>{JSON.stringify({ lists, fileNames }, null, 2)}</pre>
       </Paper>
+      <Dialog open={gettingTitle} onClose={() => setGettingTitle(false)}>
+        <DialogTitle>Save</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Save your list to a file</DialogContentText>
+          <TextField
+            label="List title"
+            placeholder="My to-do list"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setGettingTitle(false)}>Cancel</Button>
+          <Button disabled={!title || savingOrLoading} onClick={onSave}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={pickingFile} onClose={() => setPickingFile(false)}>
+        <DialogTitle>Load</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Restore a list from a file</DialogContentText>
+          <List>
+            {fileNames.map((file) => (
+              <ListItem key={file} disablePadding>
+                <ListItemButton dense onClick={() => onLoad(file)}>
+                  <ListItemText>{file}</ListItemText>
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setGettingTitle(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

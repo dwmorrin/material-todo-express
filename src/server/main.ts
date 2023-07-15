@@ -22,12 +22,14 @@ app.get("/lists", (_, res) =>
 
 // get the text inside a file
 app.get("/lists/:filename", (req, res) => {
-  if (!req.params.filename.endsWith(".json"))
-    return res.json({ error: "Sorry, just reading JSON files here." });
-  readFile(req.params.filename, "utf8", (error, file) => {
-    if (error) return res.json({ error });
-    return res.json({ file });
-  });
+  readFile(
+    `./todo-lists/${req.params.filename}.json`,
+    "utf8",
+    (error, file) => {
+      if (error) return res.json({ error });
+      return res.json({ file });
+    }
+  );
 });
 
 app.post("/lists", (req, res) =>
