@@ -8,16 +8,15 @@ const app = express();
 // enables JSON in POST bodies
 app.use(express.json());
 
-// route demo
-app.get("/hello", (_, res) => {
-  res.send("Hello Vite + React + TypeScript!");
-});
-
 // get a list of our .json files
 app.get("/lists", (_, res) =>
-  readdir(".", (error, files) => {
+  readdir("./todo-lists", (error, files) => {
     if (error) return res.json({ error });
-    return res.json({ files: files.filter((file) => file.endsWith(".json")) });
+    return res.json({
+      files: files
+        .filter((file) => file.endsWith(".json"))
+        .map((s) => s.replace(/.json$/, "")),
+    });
   })
 );
 
@@ -32,8 +31,13 @@ app.get("/lists/:filename", (req, res) => {
 });
 
 app.post("/lists", (req, res) =>
-  writeFile("todo-lists.json", JSON.stringify(req.body, null, 2), (error) =>
-    res.json({ error })
+  writeFile(
+    `./todo-lists/${req.body.title}.json`,
+    JSON.stringify(req.body.lists, null, 2),
+    (error) => {
+      if (error) res.json({ error });
+      else res.redirect("/lists");
+    }
   )
 );
 

@@ -15,9 +15,14 @@ import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
 
 import { useEffect, useState } from "react";
 
+// All responses from the server may contain an error string
+interface ErrorResponse {
+  error: string;
+}
+
 interface ToDoItem {
   id: number;
-  timestamp: number;
+  timestamp: string;
   text: string;
 }
 
@@ -30,7 +35,7 @@ interface ToDoLists {
   deleted: ToDoItem[];
 }
 
-type ListName = "active" | "done" | "deleted";
+type ListName = keyof ToDoLists;
 
 const initialLists: ToDoLists = {
   active: [],
@@ -38,81 +43,94 @@ const initialLists: ToDoLists = {
   deleted: [],
 };
 
-const readListFromFile = (file: unknown): ToDoLists => {
+const isToDoLists = (obj: unknown): obj is ToDoLists => {
+  const keys: ListName[] = ["active", "done", "deleted"];
+  return (
+    !!obj &&
+    typeof obj === "object" &&
+    keys.every((k) => k in obj && Array.isArray((obj as ToDoLists)[k]))
+  );
+};
+
+const readListsFromFile = (file: unknown): ToDoLists => {
   try {
     const maybeLists: ToDoLists = JSON.parse(file as string); // Danger!
-    const keys: ListName[] = ["active", "done", "deleted"];
-    if (keys.every((k) => k in maybeLists && Array.isArray(maybeLists[k])))
-      return maybeLists; // we've proven this works as a ToDoLists
-    return initialLists;
+    if (isToDoLists(maybeLists)) return maybeLists; // we've proven this works as a ToDoLists
+    throw "File is not a valid to-do list";
   } catch (e) {
+    console.error(e);
     return initialLists;
   }
 };
+
+const isStringArray = (array: unknown): array is string[] =>
+  Array.isArray(array) && array.every((x) => typeof x === "string");
 
 function App() {
   const [text, setText] = useState("");
   const [lists, setLists] = useState(initialLists);
   const [id, setId] = useState(1);
 
-  const [gettingHello, setGettingHello] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [gettingFileNames, setGettingFileNames] = useState(false);
+  const [fileNames, setFileNames] = useState<string[]>([]);
+  const [savingOrLoading, setSavingOrLoading] = useState(false);
+
+  const onFileNames = ({
+    error,
+    files,
+  }: ErrorResponse & { files: string[] }) => {
+    if (error) throw error;
+    if (!isStringArray(files)) throw "Failed to get list of files.";
+    setFileNames(files);
+  };
 
   useEffect(() => {
-    if (gettingHello) return;
-    setGettingHello(true);
-    fetch("/hello")
-      .then((res) => res.text())
-      .then(console.log)
+    if (gettingFileNames) return;
+    setGettingFileNames(true);
+    fetch("/lists")
+      .then((res) => res.json())
+      .then(onFileNames)
       .catch(console.error)
-      .finally(() => setGettingHello(false));
+      .finally(() => setGettingFileNames(false));
   }, []);
 
   const onSave = () => {
-    if (saving) return;
-    setSaving(true);
+    if (savingOrLoading) return;
+    setSavingOrLoading(true);
     fetch("/lists", {
       method: "POST",
-      body: JSON.stringify(lists),
+      body: JSON.stringify({ title: "my-first-list", lists }),
       headers: { "Content-Type": "application/json" },
     })
       .then((res) => res.json())
-      .then(({ error }) => {
-        if (error) throw error;
-        console.log("saved");
-      })
+      .then(onFileNames)
       .catch(console.error)
-      .finally(() => setSaving(false));
+      .finally(() => setSavingOrLoading(false));
   };
 
   const onLoad = () => {
-    if (saving) return;
-    setSaving(true);
+    if (savingOrLoading) return;
+    setSavingOrLoading(true);
     fetch("/lists/todo-lists.json")
       .then((res) => res.json())
       .then(({ error, file }) => {
         if (error) throw error;
-        setLists(readListFromFile(file));
+        setLists(readListsFromFile(file));
       })
       .catch(console.error)
-      .finally(() => setSaving(false));
+      .finally(() => setSavingOrLoading(false));
   };
 
   const addToDo = () => {
     setLists({
       ...lists,
-      active: [{ id, timestamp: Date.now(), text }, ...lists.active],
+      active: [{ id, timestamp: new Date().toJSON(), text }, ...lists.active],
     });
     setId(id + 1);
     setText("");
   };
 
-  const updateActiveItem = (updatedItem: ToDoItem) => {
-    const index = lists.active.findIndex((todo) => areEqual(todo, updatedItem));
-    if (index === -1)
-      return console.error("Application error: can't find item", {
-        item: updatedItem,
-      });
+  const updateActiveItem = (index: number, updatedItem: ToDoItem) =>
     setLists({
       ...lists,
       active: [
@@ -121,18 +139,13 @@ function App() {
         ...lists.active.slice(index + 1),
       ],
     });
-  };
 
-  const move = (from: ListName, to: ListName, item: ToDoItem) => {
-    const index = lists[from].findIndex((todo) => areEqual(todo, item));
-    if (index === -1)
-      return console.error("Application error: can't find item", { item });
+  const move = (from: ListName, to: ListName, item: ToDoItem) =>
     setLists({
       ...lists,
       [from]: lists[from].filter((other) => !areEqual(other, item)),
       [to]: [...lists[to], item],
     });
-  };
 
   return (
     <Box>
@@ -141,10 +154,10 @@ function App() {
           <Typography variant="h5" position="sticky" sx={{ flexGrow: 1 }}>
             Todo list
           </Typography>
-          <Button color="inherit" disabled={saving} onClick={onSave}>
+          <Button color="inherit" disabled={savingOrLoading} onClick={onSave}>
             Save
           </Button>
-          <Button color="inherit" disabled={saving} onClick={onLoad}>
+          <Button color="inherit" disabled={savingOrLoading} onClick={onLoad}>
             Load
           </Button>
         </Toolbar>
@@ -161,12 +174,12 @@ function App() {
             onKeyUp={(e) => e.key === "Enter" && addToDo()}
             onBlur={() => text && addToDo()}
           />
-          {lists.active.map((item) => (
+          {lists.active.map((item, index) => (
             <TextField
               key={`${item.id}-${item.timestamp}`}
               value={item.text}
               onChange={(e) =>
-                updateActiveItem({ ...item, text: e.target.value })
+                updateActiveItem(index, { ...item, text: e.target.value })
               }
               onKeyUp={(e) =>
                 e.key === "Enter" && (e.target as HTMLInputElement).blur()
@@ -213,7 +226,7 @@ function App() {
             />
           ))}
         </Stack>
-        <pre>{JSON.stringify(lists, null, 2)}</pre>
+        <pre>{JSON.stringify({ lists, fileNames }, null, 2)}</pre>
       </Paper>
     </Box>
   );
