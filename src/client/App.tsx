@@ -285,7 +285,7 @@ function App() {
           </List>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setGettingTitle(false)}>Cancel</Button>
+          <Button onClick={() => setPickingFile(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
     </Box>
