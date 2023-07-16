@@ -55,8 +55,8 @@ const initialLists: ToDoLists = {
 const isToDoLists = (obj: unknown): obj is ToDoLists => {
   const keys: ListName[] = ["active", "done", "deleted"];
   return (
-    !!obj &&
     typeof obj === "object" &&
+    obj !== null &&
     keys.every((k) => k in obj && Array.isArray((obj as ToDoLists)[k]))
   );
 };
